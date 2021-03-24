@@ -1,0 +1,27 @@
+Package: mfittrial
+Type: Package
+Title: Functions for MFIT Trial
+Version: 0.0.0.999
+Author: James Totterdell
+Maintainer: James Totterdell <jatotterdell@gmail.com>
+Description: Functions for MFIT trial.
+License: GPL-3
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.1.1
+Depends: R (>= 3.6.0)
+Imports: 
+    varapproxr,
+    mvtnorm,
+    arrangements,
+    multcomp,
+    tibble,
+    GenOrd,
+    matrixStats,
+    mvnfast,
+    automaticsims,
+    dplyr,
+    tidyr,
+    data.table,
+    designr,
+    bayestestR
