@@ -73,8 +73,8 @@ simulate_outcome_data <- function(
   nsims = 50,
   nsubj = 200,
   accrual = function(n) 1:n,
-  beta = c(0, 2, 4, 6, 0, -3, -3, -3, 0, 3, 3, 3, 0, 0, 0, 0),
-  sigma_e = 4,
+  beta = c(0, 2, 4, 6, 0, -2.5, -2.5, -2.5, 0, 2.5, 2.5, 2.5, 0, 0, 0, 0),
+  sigma_e = 5,
   sigma_u = 1
 ) {
   accdat <- simulate_accrual_data(nsubj, accrual)
@@ -106,7 +106,7 @@ simulate_outcome_data <- function(
 #' @return A list giving the mean and variance of the variational approximation to the fixed effects
 #' @export
 #' @import bayestestR
-estimate_lmm_model <- function(dat, zero_sum = F) {
+estimate_lmm_model <- function(dat, zero_sum = F, scale = F, int_prior_sd = 10, b_prior_sd = 10) {
   if(zero_sum) {
     mX <- model.matrix( ~ t + t:x, data = dat, contrasts.arg = list(x = 'contr.bayes'))[, -c(5, 9, 13)]
   } else {
@@ -114,26 +114,39 @@ estimate_lmm_model <- function(dat, zero_sum = F) {
   }
   mZ <- unname(model.matrix( ~ 0 + factor(id), data = dat)[,])
   y  <- dat[[grep("V", names(dat), value = T)]]
-  y_mean <- mean(y[dat$time == 0])
-  y_sd   <- sd(y[dat$time == 0])
-  y_std  <- (y - y_mean) / y_sd
+  if(scale) {
+    # y_mean <- mean(y[dat$time == 0])
+    # y_sd   <- sd(y[dat$time == 0])
+    y_mean <- mean(y)
+    y_sd   <- sd(y)
+    y_std  <- (y - y_mean) / y_sd
+  } else {
+    y_std <- y
+  }
   fit_vb <- varapproxr::vb_lmm_randint(
     mX,
     mZ,
     y_std,
     mu_beta = rep(0, ncol(mX)),
-    sigma_beta = diag(c(10^2, rep(10, ncol(mX) - 1))),
+    sigma_beta = diag(c(int_prior_sd^2, rep(b_prior_sd^2, ncol(mX) - 1))),
     mu = rep(0, ncol(mZ) + ncol(mX)),
     sigma = diag(1, ncol(mZ) + ncol(mX)),
-    Aeps = 1e-2, Beps = 1e-2, Au = 1e-2, Bu = 1e-2,
+    Aeps = 1e-2, Beps = 1e-2,
+    Au = 1e-2, Bu = 1e-2,
     tol = 1e-4,
     maxiter = 500
   )
   if(!fit_vb$converged) warning("Failed to converge")
-  # Back transform parameters to original scale
-  mu <- drop(fit_vb$mu)[1:ncol(mX)] * y_sd
-  mu[1] <- mu[1] + y_mean
-  Sigma <- fit_vb$sigma[1:ncol(mX), 1:ncol(mX)] * y_sd^2
+  if(scale) {
+    # Back transform parameters to original scale
+    mu <- drop(fit_vb$mu)[1:ncol(mX)] * y_sd
+    mu[1] <- mu[1] + y_mean
+    Sigma <- fit_vb$sigma[1:ncol(mX), 1:ncol(mX)] * y_sd^2
+  } else {
+    mu <- drop(fit_vb$mu)[1:ncol(mX)]
+    Sigma <- fit_vb$sigma[1:ncol(mX), 1:ncol(mX)]
+  }
+
   return(list(mu = mu, Sigma = Sigma))
 }
 
@@ -156,7 +169,9 @@ simulate_longitudinal_trial <- function(
   alloc   = rep(1/4, 4),
   brar    = TRUE,
   make_dt = TRUE,
-  zero_sum = FALSE
+  zero_sum = FALSE,
+  scale = FALSE,
+  ...
 ) {
   # Data setup
   K      <- length(alloc)
@@ -182,6 +197,7 @@ simulate_longitudinal_trial <- function(
   trt_var  <- trt_mean
   eff_mean <- matrix(0, N, K - 1, dimnames = list(analysis = 1:N, treatment = trtlabs[-1]))
   eff_var  <- eff_mean
+  b_mean   <- matrix(0, N, ncol(X), dimnames = list(analysis = 1:N, parameter = colnames(X)))
   p_supr   <- trt_mean
   i_supr   <- trt_mean
   i_infr   <- trt_mean
@@ -206,13 +222,14 @@ simulate_longitudinal_trial <- function(
       n_enr[i, ] <- trtdat[between(id, 1, idenr[i, 2]), .N, by = trt][["N"]]
     }
 
-    fit <- estimate_lmm_model(obsdat, zero_sum = zero_sum)
+    fit <- estimate_lmm_model(obsdat, zero_sum = zero_sum, scale = scale, ...)
     mu <- fit$mu
     Sigma <- fit$Sigma
     mu_t3 <- drop(X %*% mu)[10:13]
     Sigma_t3 <- (X %*% Sigma %*% t(X))[10:13, 10:13]
 
     # Update the inferences
+    b_mean[i, ] <- mu
     trt_mean[i, ] <- mu_t3
     trt_var[i, ]  <- diag(Sigma_t3)
     eff_mean[i, ] <- drop(Z %*% X %*% mu)
@@ -269,6 +286,7 @@ simulate_longitudinal_trial <- function(
     trt_var  = trt_var[idx, , drop = F],
     eff_mean = eff_mean[idx, , drop = F],
     eff_var = eff_var[idx, , drop = F],
+    # b_mean = b_mean[idx ,, drop = F],
     p_supr = p_supr[idx, , drop = F],
     p_eff = p_eff[idx, , drop = F],
     i_eff = i_eff[idx, , drop = F],
