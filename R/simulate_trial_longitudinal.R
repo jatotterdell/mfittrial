@@ -43,16 +43,20 @@ make_design <- function(zero_sum = FALSE) {
 #'
 #' @param nsubj The number of subjects
 #' @param accrual An accrual function which returns `nsubj` ordered randomisation times in weeks
+#' @param dropout A drop-out function which returns `nsubj` times-to-drop-out, one for each subject.
+#' `Inf` means no drop-out (not implemented)
 #' @return A data.table giving the accrual data
 #' @export
 #' @import data.table
 simulate_accrual_data <- function(
   nsubj = 200,
-  accrual = function(n) 1:n
+  accrual = function(n) 1:n,
+  dropout = function(n) Inf
 ) {
   dat <- data.table(
     id = 1:nsubj,
     t0 = accrual(nsubj)
+    # td = dropout(nsubj)
   )
   return(dat)
 }
@@ -103,10 +107,13 @@ simulate_outcome_data <- function(
 #'
 #' @param dat The data (as a data.table)
 #' @param zero_sum Use sum-to-zero coding
+#' @param scale Character string indicating how to centre/scale responses, default is `none`, other options are `all` or `baseline`.
+#' @param int_prior_sd Prior standard deviation on intercept parameter
+#' @param b_prior_sd Prior standard deviation used for all other population parameters
 #' @return A list giving the mean and variance of the variational approximation to the fixed effects
 #' @export
 #' @import bayestestR
-estimate_lmm_model <- function(dat, zero_sum = F, scale = F, int_prior_sd = 10, b_prior_sd = 10) {
+estimate_lmm_model <- function(dat, zero_sum = F, scale = "none", int_prior_sd = 10, b_prior_sd = 10) {
   if(zero_sum) {
     mX <- model.matrix( ~ t + t:x, data = dat, contrasts.arg = list(x = 'contr.bayes'))[, -c(5, 9, 13)]
   } else {
@@ -114,15 +121,18 @@ estimate_lmm_model <- function(dat, zero_sum = F, scale = F, int_prior_sd = 10, 
   }
   mZ <- unname(model.matrix( ~ 0 + factor(id), data = dat)[,])
   y  <- dat[[grep("V", names(dat), value = T)]]
-  if(scale) {
-    # y_mean <- mean(y[dat$time == 0])
-    # y_sd   <- sd(y[dat$time == 0])
+
+  if(scale == "all") {
     y_mean <- mean(y)
     y_sd   <- sd(y)
-    y_std  <- (y - y_mean) / y_sd
+  } else if(scale == "baseline") {
+    y_mean <- mean(y[dat$time == 0])
+    y_sd   <- sd(y[dat$time == 0])
   } else {
-    y_std <- y
+    y_mean <- 0
+    y_sd   <- 1
   }
+  y_std  <- (y - y_mean) / y_sd
   fit_vb <- varapproxr::vb_lmm_randint(
     mX,
     mZ,
@@ -137,15 +147,10 @@ estimate_lmm_model <- function(dat, zero_sum = F, scale = F, int_prior_sd = 10, 
     maxiter = 500
   )
   if(!fit_vb$converged) warning("Failed to converge")
-  if(scale) {
-    # Back transform parameters to original scale
-    mu <- drop(fit_vb$mu)[1:ncol(mX)] * y_sd
-    mu[1] <- mu[1] + y_mean
-    Sigma <- fit_vb$sigma[1:ncol(mX), 1:ncol(mX)] * y_sd^2
-  } else {
-    mu <- drop(fit_vb$mu)[1:ncol(mX)]
-    Sigma <- fit_vb$sigma[1:ncol(mX), 1:ncol(mX)]
-  }
+  # Back transform parameters to original scale
+  mu <- drop(fit_vb$mu)[1:ncol(mX)] * y_sd
+  mu[1] <- mu[1] + y_mean
+  Sigma <- fit_vb$sigma[1:ncol(mX), 1:ncol(mX)] * y_sd^2
 
   return(list(mu = mu, Sigma = Sigma))
 }
@@ -219,7 +224,7 @@ simulate_longitudinal_trial <- function(
       trtdat[between(id, idenr[i, 1], idenr[i, 2]), trt := trtenr]
       moddat <- dat[trtdat[between(id, 1, idenr[i, 2])], on = .(id, trt)]
       obsdat <- moddat[tt <= t_seq[i]]
-      n_enr[i, ] <- trtdat[between(id, 1, idenr[i, 2]), .N, by = trt][["N"]]
+      n_enr[i, ] <- trtdat[between(id, 1, idenr[i, 2]), .N, keyby = trt][["N"]]
     }
 
     fit <- estimate_lmm_model(obsdat, zero_sum = zero_sum, scale = scale, ...)
