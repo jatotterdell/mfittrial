@@ -89,7 +89,7 @@ simulate_outcome_data <- function(
     time = fcase(t == 0, 0, t == 1, 4, t == 2, 8, t == 3, 12),
     t    = factor(t)
   )][, tt := t0 + time]
-  rtsimmat <- do.call(data.table:::cbind.data.table, mclapply(1:nsims, function(i) {
+  rtsimmat <- do.call(data.table:::cbind.data.table, parallel::mclapply(1:nsims, function(i) {
     designr::simLMM(
       ~ 0 + t + t:x + (1 | id),
       data = simdat,
@@ -107,16 +107,14 @@ simulate_outcome_data <- function(
 #' @param nsims Number of sets of outcome data to simulate
 #' @param nsubj Number of subjects
 #' @param means The mean at each time point in each arm
-#' @param corr The variance structure between time points (assumed equal across all arms)
-#' @param sigma_e Variance of residuals for outcome
-#' @param sigma_u Variance of subject specific intercepts
+#' @param covar The co-variance structure between time points (assumed equal across all arms)
 #' @return A data.table giving outcome data
 #' @export
 simulate_general_outcome_data <- function(
   nsims = 50,
   nsubj = 400,
   means = matrix(0, 4, 4, dimnames = list(t = 0:3, a = 0:3)),
-  corr  = {R <- matrix(0.5, 4, 4); diag(R) <- 1; 5^2*R},
+  covar = {R <- matrix(0.5, 4, 4); diag(R) <- 1; 5^2*R},
   ...
 ) {
   accdat <- simulate_accrual_data(nsubj, ...)
@@ -124,7 +122,7 @@ simulate_general_outcome_data <- function(
   arms <- ncol(means)
   out  <- vapply(seq_len(nsims), function(z) {
     vapply(seq_len(arms), function(j) {
-      mvnfast::rmvn(nsubj, means[, j], corr)
+      mvnfast::rmvn(nsubj, means[, j], covar)
     }, FUN.VALUE = matrix(0, nsubj, obsv))
     }, FUN.VALUE = array(0, dim = c(nsubj, obsv, arms)))
   out <- as.data.table(out)[, .(
