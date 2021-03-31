@@ -6,12 +6,15 @@
 \usage{
 simulate_longitudinal_trial(
   n_seq = c(100, 150, 200, 250, 400),
-  dat = simulate_outcome_data(nsims = 1, nsubj = max(n_seq)),
+  dat = simulate_general_outcome_data(nsims = 1, nsubj = max(n_seq)),
   eff_eps = 0.95,
   sup_eps = 0.95,
   alloc = rep(1/4, 4),
   brar = TRUE,
-  make_dt = TRUE
+  make_dt = TRUE,
+  zero_sum = FALSE,
+  scale = FALSE,
+  ...
 )
 }
 \arguments{

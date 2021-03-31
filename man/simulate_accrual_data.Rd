@@ -4,12 +4,19 @@
 \alias{simulate_accrual_data}
 \title{Simulate accrual data}
 \usage{
-simulate_accrual_data(nsubj = 200, accrual = function(n) 1:n)
+simulate_accrual_data(
+  nsubj = 200,
+  accrual = function(n) round(cumsum(rexp(n, 3))),
+  dropout = function(n) sample(c(1, Inf), n, replace = T, prob = c(0.2, 0.8))
+)
 }
 \arguments{
 \item{nsubj}{The number of subjects}
 
 \item{accrual}{An accrual function which returns `nsubj` ordered randomisation times in weeks}
+
+\item{dropout}{A drop-out function which returns `nsubj` times-to-drop-out, one for each subject.
+`Inf` means no drop-out (not implemented)}
 }
 \value{
 A data.table giving the accrual data

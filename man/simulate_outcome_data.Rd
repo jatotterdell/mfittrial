@@ -8,8 +8,8 @@ simulate_outcome_data(
   nsims = 50,
   nsubj = 200,
   accrual = function(n) 1:n,
-  beta = c(0, 2, 4, 6, 0, -3, -3, -3, 0, 3, 3, 3, 0, 0, 0, 0),
-  sigma_e = 4,
+  beta = c(0, 2, 4, 6, 0, -2.5, -2.5, -2.5, 0, 2.5, 2.5, 2.5, 0, 0, 0, 0),
+  sigma_e = 5,
   sigma_u = 1
 )
 }
