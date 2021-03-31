@@ -50,14 +50,14 @@ make_design <- function(zero_sum = FALSE) {
 #' @import data.table
 simulate_accrual_data <- function(
   nsubj = 200,
-  accrual = function(n) 1:n,
-  dropout = function(n) Inf
+  accrual = function(n) round(cumsum(rexp(n, 3))),
+  dropout = function(n) sample(c(1, Inf), n, replace = T, prob = c(0.2, 0.8))
 ) {
   dat <- data.table(
     id = 1:nsubj,
     t0 = accrual(nsubj)
-    # td = dropout(nsubj)
   )
+  dat[, td  := t0 + dropout(nsubj)]
   return(dat)
 }
 
@@ -103,6 +103,35 @@ simulate_outcome_data <- function(
 }
 
 
+simulate_general_outcome_data <- function(
+  nsims = 50,
+  nsubj = 400,
+  means = matrix(0, 4, 4, dimnames = list(t = 0:3, a = 0:3)),
+  corr  = {R <- matrix(0.5, 4, 4); diag(R) <- 1; R},
+  ...
+) {
+  accdat <- simulate_accrual_data(nsubj, ...)
+  obsv <- nrow(means)
+  arms <- ncol(means)
+  out  <- vapply(seq_len(nsims), function(z) {
+    vapply(seq_len(arms), function(j) {
+      rmvn(nsubj, means[, j], corr)
+    }, FUN.VALUE = matrix(0, nsubj, obsv))
+    }, FUN.VALUE = array(0, dim = c(nsubj, obsv, arms)))
+  out <- as.data.table(out)[, .(
+    id = V1, t = factor(V2 - 1), trt = V3 - 1, sim = V4, y = value
+  )][order(sim, id, trt, t)]
+  out <- dcast(out, id + t + trt ~ forcats::fct_inorder(paste0("y", sim)), value.var = 'y')
+  out <- out[accdat, on = .(id)]
+  out[, `:=`(
+    tt = fcase(t == 0, t0, t == 1, t0 + 4, t == 2, t0 + 8, t == 3, t0 + 12),
+    x  = factor(ifelse(t == 0, 0L, trt))
+  )]
+  setcolorder(out, c("id", "trt", "t", "x", "t0", "tt", "td"))
+  return(out)
+}
+
+
 #' Estimate the model
 #'
 #' @param dat The data (as a data.table)
@@ -120,14 +149,14 @@ estimate_lmm_model <- function(dat, zero_sum = F, scale = "none", int_prior_sd =
     mX <- model.matrix( ~ t + t:x, data = dat)[, -c(5, 9, 13)]
   }
   mZ <- unname(model.matrix( ~ 0 + factor(id), data = dat)[,])
-  y  <- dat[[grep("V", names(dat), value = T)]]
+  y  <- dat[[grep("y", names(dat), value = T)]]
 
   if(scale == "all") {
     y_mean <- mean(y)
     y_sd   <- sd(y)
   } else if(scale == "baseline") {
-    y_mean <- mean(y[dat$time == 0])
-    y_sd   <- sd(y[dat$time == 0])
+    y_mean <- mean(y[dat$t == 0])
+    y_sd   <- sd(y[dat$t == 0])
   } else {
     y_mean <- 0
     y_sd   <- 1
@@ -168,7 +197,7 @@ estimate_lmm_model <- function(dat, zero_sum = F, scale = "none", int_prior_sd =
 #' @export
 simulate_longitudinal_trial <- function(
   n_seq = c(100, 150, 200, 250, 400),
-  dat = simulate_outcome_data(nsims = 1, nsubj = max(n_seq)),
+  dat = simulate_general_outcome_data(nsims = 1, nsubj = max(n_seq)),
   eff_eps = 0.95,
   sup_eps = 0.95,
   alloc   = rep(1/4, 4),
@@ -183,7 +212,7 @@ simulate_longitudinal_trial <- function(
   X      <- make_design(zero_sum = zero_sum)
   C      <- X[-1, -(1:4)]
   Z      <- cbind(matrix(0, 3, 9), cbind(-1, diag(1, 3)))
-  accdat <- unique(dat[time == 12, .(id, t0, tt)])
+  accdat <- unique(dat[t == 3, .(id, t0, tt)])
   trtdat <- data.table(id = 1:max(n_seq), trt = 99)
   moddat <- NULL
   obsdat <- NULL
@@ -197,6 +226,7 @@ simulate_longitudinal_trial <- function(
   # Output storage
   trtlabs <- paste0("trt", 0:(K - 1))
   n_enr   <- matrix(0, N, K, dimnames = list(analysis = 1:N, treatment = trtlabs))
+  n_obs   <- n_enr
   parlabs <- c("intercept", trtlabs)
   trt_mean <- matrix(0, N, K, dimnames = list(analysis = 1:N, treatment = trtlabs))
   trt_var  <- trt_mean
@@ -219,12 +249,14 @@ simulate_longitudinal_trial <- function(
       trtdat <- trtdat[trt != 99]
       obsdat <- dat[trtdat, on = .(id, trt)]
       n_enr[i, ] <- trtdat[, .N, by = trt][["N"]]
+      n_obs[i, ] <- obsdat[t == 3, .N, keyby = trt][["N"]]
     } else { # Otherwise enrol new participants
       trtenr <- sample.int(K, n_new[i], TRUE, prob = alloc) - 1
       trtdat[between(id, idenr[i, 1], idenr[i, 2]), trt := trtenr]
       moddat <- dat[trtdat[between(id, 1, idenr[i, 2])], on = .(id, trt)]
-      obsdat <- moddat[tt <= t_seq[i]]
+      obsdat <- moddat[tt <= t_seq[i] & td > tt]
       n_enr[i, ] <- trtdat[between(id, 1, idenr[i, 2]), .N, keyby = trt][["N"]]
+      n_obs[i, ] <- obsdat[t == 3, .N, keyby = trt][["N"]]
     }
 
     fit <- estimate_lmm_model(obsdat, zero_sum = zero_sum, scale = scale, ...)
@@ -245,7 +277,7 @@ simulate_longitudinal_trial <- function(
     means <- mvnfast::rmvn(2e4, mu_t3, Sigma_t3)
 
     # Conclusions carry forward
-    # i.e. once decided effective, also effective at all future analyses
+    # i.e. once decided superior/inferior, also superior/inferior at all future analyses
     if(i == 1) {
       p_eff[i, ]  <- 1 - pnorm(0, eff_mean[i, ], sqrt(eff_var[i, ]))
       i_eff[i, ]  <- p_eff[i, ] > eff_eps
@@ -258,8 +290,10 @@ simulate_longitudinal_trial <- function(
       i_acti[i+1, ] <- 1 - i_infr[i, ]
     } else {
       p_eff[i, ]    <- 1 - pnorm(0, eff_mean[i, ], sqrt(eff_var[i, ]))
-      i_eff[i, ]    <- (p_eff[i, ] > eff_eps) | (i_eff[i-1,] == 1)
-      i_inf[i, ]    <- (p_eff[i, ] < 1 - eff_eps) | (i_inf[i-1, ] == 1)
+      # i_eff[i, ]    <- (p_eff[i, ] > eff_eps) | (i_eff[i-1,] == 1)
+      i_eff[i, ]    <- p_eff[i, ] > eff_eps
+      # i_inf[i, ]    <- (p_eff[i, ] < 1 - eff_eps) | (i_inf[i-1, ] == 1)
+      i_inf[i, ]    <- p_eff[i, ] < 1 - eff_eps
       # Only include active in superiority assessment
       p_supr[i, i_acti[i, ] == 1] <- prob_supr(means[, i_acti[i, ] == 1, drop = F])
       i_supr[i, ]   <- (p_supr[i, ] > sup_eps) | (i_supr[i-1, ] == 1)
@@ -287,6 +321,7 @@ simulate_longitudinal_trial <- function(
   # Results
   out <- list(
     n_enr = n_enr[idx, , drop = F],
+    n_obs = n_obs[idx, , drop = F],
     trt_mean = trt_mean[idx, , drop = F],
     trt_var  = trt_var[idx, , drop = F],
     eff_mean = eff_mean[idx, , drop = F],

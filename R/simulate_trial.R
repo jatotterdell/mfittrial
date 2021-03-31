@@ -1,3 +1,17 @@
+#' Probability each column is maximum
+#'
+#' @param M A matrix of Monte Carlo draws
+#' @export
+prob_max <- function(M) {
+  as.numeric(prop.table(table(factor(max.col(M), 1:ncol(M)))))
+}
+
+#' @export
+pairwise_superiority_all <- function(mat, delta = 0, ...) {
+  pmat <- pairwise_diff_all(mat, ...)
+  apply(pmat, 2, function(x) mean(x > delta))
+}
+
 #' @export
 simulate_trial <- function(
   n_seq = c(107, 214, 320),
@@ -379,9 +393,9 @@ simulate_trial_anova <- function(
       beta <- draws %*% Q_t
 
       # Summarise posterior probabilities of interest
-      p_best_sub_interim <- sapply(1:4, function(i) automaticsims:::prob_max(mu[, c(1,5,9,13) + (i - 1)]))
-      p_best_interim <- automaticsims:::prob_max(mu)
-      p_best_int_interim <- automaticsims:::prob_max(beta[, 2:5])
+      p_best_sub_interim <- sapply(1:4, function(i) prob_max(mu[, c(1,5,9,13) + (i - 1)]))
+      p_best_interim <- prob_max(mu)
+      p_best_int_interim <- prob_max(beta[, 2:5])
       p_int_beat_ctrl_interim <-
       n_sub_interim <- table(D[1:(n_seq[k] - n_delay), ]$int, D[1:(n_seq[k] - n_delay), ]$pref)
       is_sup_sub_interim <- p_best_sub_interim > kappa_sup
@@ -450,26 +464,26 @@ simulate_trial_anova <- function(
   # Calculate posterior probabilities at final analysis
 
   # Best in sub group
-  p_best_sub_end[] <- sapply(1:4, function(i) automaticsims:::prob_max(mu[, c(1,5,9,13) + (i - 1)]))
+  p_best_sub_end[] <- sapply(1:4, function(i) prob_max(mu[, c(1,5,9,13) + (i - 1)]))
   is_sup_sub_end <- p_best_sub_end > kappa_sup
   any_sup_sub_end <- matrixStats::colAnys(is_sup_sub_end)
 
   # Best overall
-  p_best_end[] <- automaticsims:::prob_max(mu)
+  p_best_end[] <- prob_max(mu)
   is_sup_end <- p_best_end > kappa_sup
   any_sup_end <- any(is_sup_end)
 
   # Best average treatment effect
-  p_best_int_end[] <- automaticsims:::prob_max(beta[, 2:5])
+  p_best_int_end[] <- prob_max(beta[, 2:5])
   is_sup_int_end <- p_best_int_end > kappa_sup
   any_sup_int_end <- any(is_sup_int_end)
 
   # Average treatment vs control
   p_avg_int_beat_ctrl <- mean(matrixStats::rowMeans2(beta[, 3:5] - beta[, 2]) > 0)
 
-  p_pair_sub_end[] <- sapply(1:4, function(i) automaticsims:::pairwise_superiority_all(mu[, c(1,5,9,13) + (i - 1)], replace = T))
-  # p_pair_end[] <- automaticsims:::pairwise_superiority_all(mu, replace = T)
-  p_pair_int_end[] <- automaticsims:::pairwise_superiority_all(beta[, 2:5], replace = T)
+  p_pair_sub_end[] <- sapply(1:4, function(i) pairwise_superiority_all(mu[, c(1,5,9,13) + (i - 1)], replace = T))
+  # p_pair_end[] <- pairwise_superiority_all(mu, replace = T)
+  p_pair_int_end[] <- pairwise_superiority_all(beta[, 2:5], replace = T)
   p_int_beat_ctrl_end <- p_pair_int_end[grepl("[2-4]-1", names(p_pair_int_end))]
 
   return(list(
@@ -627,15 +641,15 @@ simulate_example_trial_anova <- function(
       beta <- draws %*% Q_t
 
       # Summarise posterior probabilities of interest
-      p_best_sub <- sapply(1:4, function(i) automaticsims:::prob_max(mu[, c(1,5,9,13) + (i - 1)]))
-      p_best_int <- automaticsims:::prob_max(beta[, 2:5])
-      p_best     <- automaticsims:::prob_max(mu)
+      p_best_sub <- sapply(1:4, function(i) prob_max(mu[, c(1,5,9,13) + (i - 1)]))
+      p_best_int <- prob_max(beta[, 2:5])
+      p_best     <- prob_max(mu)
       p_avg_int_beat_ctrl <- mean(matrixStats::rowMeans2(beta[, 3:5] - beta[, 2]) > 0)
       n_sub <- table(D[1:(n_seq[k] - n_delay), ]$int, D[1:(n_seq[k] - n_delay), ]$pref)
       is_sup_sub <- p_best_sub > kappa_sup
       any_sup_sub <- matrixStats::colAnys(is_sup_sub)
-      p_pair_sub[] <- sapply(1:4, function(i) automaticsims:::pairwise_superiority_all(mu[, c(1,5,9,13) + (i - 1)], replace = T))
-      p_pair_int[] <- automaticsims:::pairwise_superiority_all(beta[, 2:5], replace = T)
+      p_pair_sub[] <- sapply(1:4, function(i) pairwise_superiority_all(mu[, c(1,5,9,13) + (i - 1)], replace = T))
+      p_pair_int[] <- pairwise_superiority_all(beta[, 2:5], replace = T)
       p_int_beat_ctrl <- p_pair_int[grepl("[2-4]-1", names(p_pair_int))]
 
       # Update allocation ratios if using BRAR
@@ -716,24 +730,24 @@ simulate_example_trial_anova <- function(
   # Calculate posterior probabilities at final analysis
 
   # Best in sub group
-  p_best_sub[] <- sapply(1:4, function(i) automaticsims:::prob_max(mu[, c(1,5,9,13) + (i - 1)]))
+  p_best_sub[] <- sapply(1:4, function(i) prob_max(mu[, c(1,5,9,13) + (i - 1)]))
   is_sup_sub   <- p_best_sub > kappa_sup
   any_sup_sub  <- matrixStats::colAnys(is_sup_sub)
 
   # Best overall
-  p_best[] <- automaticsims:::prob_max(mu)
+  p_best[] <- prob_max(mu)
   is_sup   <- p_best > kappa_sup
   any_sup  <- any(is_sup)
 
   # Best average treatment effect
-  p_best_int[] <- automaticsims:::prob_max(beta[, 2:5])
+  p_best_int[] <- prob_max(beta[, 2:5])
   is_sup_int   <- p_best_int > kappa_sup
   any_sup_int  <- any(is_sup_int)
 
   # Average treatment vs control
   p_avg_int_beat_ctrl <- mean(matrixStats::rowMeans2(beta[, 3:5] - beta[, 2]) > 0)
-  p_pair_sub[]    <- sapply(1:4, function(i) automaticsims:::pairwise_superiority_all(mu[, c(1,5,9,13) + (i - 1)], replace = T))
-  p_pair_int[]    <- automaticsims:::pairwise_superiority_all(beta[, 2:5], replace = T)
+  p_pair_sub[]    <- sapply(1:4, function(i) pairwise_superiority_all(mu[, c(1,5,9,13) + (i - 1)], replace = T))
+  p_pair_int[]    <- pairwise_superiority_all(beta[, 2:5], replace = T)
   p_int_beat_ctrl <- p_pair_int[grepl("[2-4]-1", names(p_pair_int))]
 
   final_results <- list(
