@@ -102,12 +102,21 @@ simulate_outcome_data <- function(
   return(data.table:::cbind.data.table(simdat, rtsimmat))
 }
 
-
+#' Simulate outcome data
+#'
+#' @param nsims Number of sets of outcome data to simulate
+#' @param nsubj Number of subjects
+#' @param means The mean at each time point in each arm
+#' @param corr The variance structure between time points (assumed equal across all arms)
+#' @param sigma_e Variance of residuals for outcome
+#' @param sigma_u Variance of subject specific intercepts
+#' @return A data.table giving outcome data
+#' @export
 simulate_general_outcome_data <- function(
   nsims = 50,
   nsubj = 400,
   means = matrix(0, 4, 4, dimnames = list(t = 0:3, a = 0:3)),
-  corr  = {R <- matrix(0.5, 4, 4); diag(R) <- 1; R},
+  corr  = {R <- matrix(0.5, 4, 4); diag(R) <- 1; 5^2*R},
   ...
 ) {
   accdat <- simulate_accrual_data(nsubj, ...)
@@ -115,7 +124,7 @@ simulate_general_outcome_data <- function(
   arms <- ncol(means)
   out  <- vapply(seq_len(nsims), function(z) {
     vapply(seq_len(arms), function(j) {
-      rmvn(nsubj, means[, j], corr)
+      mvnfast::rmvn(nsubj, means[, j], corr)
     }, FUN.VALUE = matrix(0, nsubj, obsv))
     }, FUN.VALUE = array(0, dim = c(nsubj, obsv, arms)))
   out <- as.data.table(out)[, .(
