@@ -255,7 +255,7 @@ simulate_longitudinal_trial <- function(
     if(stopped) {
       trtdat <- trtdat[trt != 99]
       obsdat <- dat[trtdat, on = .(id, trt)]
-      n_enr[i, ] <- trtdat[, .N, by = trt][["N"]]
+      n_enr[i, ] <- trtdat[, .N, keyby = trt][["N"]]
       n_obs[i, ] <- obsdat[t == 3, .N, keyby = trt][["N"]]
     } else { # Otherwise enrol new participants
       trtenr <- sample.int(K, n_new[i], TRUE, prob = alloc) - 1
