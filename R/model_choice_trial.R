@@ -14,7 +14,7 @@ choose_model <- function(X1, X2, y, M0, S0, A0, B0) {
   return(list(model = (bf < 0) + 1, res = mod))
 }
 
-
+#' @export
 run_model_choice_trial <- function(
   n_seq = c(107, 214, 320),
   n_delay = 27,
@@ -30,7 +30,8 @@ run_model_choice_trial <- function(
   S0 = diag(c(100^2, rep(100^2, 15))),
   A0 = 1e-2,
   B0 = 1e-2,
-  perm_drop = F
+  perm_drop = F,
+  adjust_baseline = F
 ) {
   if(min(n_seq) <= n_delay) stop("min(n_seq) must exceed n_delay to be valid.")
 
@@ -43,6 +44,7 @@ run_model_choice_trial <- function(
 
   D <- sim_data_anova(n_new[1], m_baseline, m_outcome, v_bo, p_pref, p_alloc)
   X1 <- X_con[D$com, ]
+  X2 <- X_con_red[D$com, ]
   P1 <- ncol(X1)
   P2 <- ncol(X2)
 
@@ -54,8 +56,9 @@ run_model_choice_trial <- function(
   p_best_int <- matrix(0, K, 4, dimnames = list("interim" = 1:K, "int" = 1:4))
   chosen_mod <- integer(K)
   model_fit <- vector("list", K)
-  mean_mu <- matrix(0, K, nrow(X), dimnames = list("interim" = 1:K, "par" = rownames(X)))
+  mean_mu <- matrix(0, K, nrow(X_con), dimnames = list("interim" = 1:K, "par" = rownames(X_con)))
   mean_beta <- matrix(0, K, nrow(Q), dimnames = list("interim" = 1:K, "par" = rownames(Q)))
+  is_active_sub <- matrix(0, K, nrow(X_con), dimnames = list("interim" = 1:K, "par" = rownames(X_con)))
 
   # If interims cycle through them
   if(n_ints > 0) {
@@ -150,12 +153,12 @@ run_model_choice_trial <- function(
   p_best_int[K, ] <- automaticsims:::prob_max(beta[, 2:5])
   is_sup_sub_mat <- sweep(p_best_mat, 2, kappa_sup, ">")
 
-  return(enframe(list(
-    model = tibble(chosen_mod) %>% rownames_to_column("analysis"),
-    model_fit = enframe(model_fit, "analysis", "model_fit"),
-    mean_mu = gather(as_tibble(mean_mu, rownames = "analysis"), "parameter", mean_mu, -analysis),
-    mean_beta = gather(as_tibble(mean_beta, rownames = "analysis"), "parameter", mean_beta, -analysis),
-    p_best_sub = gather(as_tibble(p_best_sub, rownames = "analysis"), "arm", p_best_sub, -analysis),
-    p_best_int = gather(as_tibble(p_best_int, rownames = "analysis"), "intervention", p_best_int, -analysis)
+  return(tibble::enframe(list(
+    model = tibble::tibble(chosen_mod) %>% tibble::rownames_to_column("analysis"),
+    model_fit = tibble::enframe(model_fit, "analysis", "model_fit"),
+    mean_mu = tidyr::gather(tibble::as_tibble(mean_mu, rownames = "analysis"), "parameter", mean_mu, -analysis),
+    mean_beta = tidyr::gather(tibble::as_tibble(mean_beta, rownames = "analysis"), "parameter", mean_beta, -analysis),
+    p_best_sub = tidyr::gather(tibble::as_tibble(p_best_sub, rownames = "analysis"), "arm", p_best_sub, -analysis),
+    p_best_int = tidyr::gather(tibble::as_tibble(p_best_int, rownames = "analysis"), "intervention", p_best_int, -analysis)
   )))
 }
