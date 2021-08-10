@@ -1,7 +1,7 @@
 #' Simulate continuous outcome data
 #'
 #' @param nsubj The number of participants to simulate
-#' @param accrual A function which determines rate of accrual in weeks
+#' @param accrual A function which determines rate of accrual in weeks, default assumes mean of 3 per week
 #' @param means The mean response under each treatment
 #' @param sigma Variance of response (assumed constant over treatments)
 #' @export
@@ -20,6 +20,7 @@ simulate_continuous_outcome <- function(
   setcolorder(out, c("id", "t0", "tt", "t", "trt", "y"))
   return(out)
 }
+
 
 #' Estimate linear regression model using variational approximation.
 #'
@@ -42,7 +43,7 @@ estimate_lm_model <- function(
   y  <- dat$y
   mu0 <- c(int_prior_mean, 0, 0, 0)
   Sigma0 <- diag(c(int_prior_sd, rep(b_prior_sd, 3)))^2
-  fit <- varapproxr::vb_lm(mX, y, mu0, Sigma0, a0 = 3, b0 = 5, prior = 2)
+  fit <- varapproxr::vb_lm(mX, y, mu0, Sigma0, a0 = a0, b0 = b0, prior = 2) # Note, implies Half-t(df = a0, scale = b0) prior
   return(list(mu = fit$mu, Sigma = fit$Sigma))
 }
 
@@ -65,8 +66,9 @@ simulate_trial_with_control <- function(
   fut_eps = 0.98,
   delta   = 2,
   alloc   = rep(1/4, 4),
-  prior = c(int_prior_mean = 40, int_prior_sd = 5, b_prior_sd = 5, a0 = 3, b0 = 5),
-  brar    = TRUE,
+  prior   = c(int_prior_mean = 40, int_prior_sd = 5, b_prior_sd = 5, a0 = 3, b0 = 5),
+  brar    = 2,
+  brar_k  = 0.5,
   allow_stopping = TRUE,
   make_dt = TRUE,
   ...
@@ -147,42 +149,54 @@ simulate_trial_with_control <- function(
       # Probability active treatment better than control
       p_eff[i, ] <- 1 - pnorm(0, eff_mean[i, ], sqrt(eff_var[i, ]))
       p_fut[i, ] <- pnorm(delta, eff_mean[i, ], sqrt(eff_var[i, ]))
+
       # Is active treatment better than control
       i_eff[i, ] <- p_eff[i, ] > eff_eps
+
       # Is active treatment worse than control
       i_inf[i, ] <- p_eff[i, ] < 1 - eff_eps
       i_fut[i, ] <- p_fut[i, ] > fut_eps
+
       # Is active treatment superior
       p_supr[i, ] <- prob_supr(mean_draws)
       i_supr[i, ] <- p_supr[i, ] > sup_eps
       i_infr[i, ] <- p_supr[i, ] < (1 - sup_eps) / (K - 2)
+
       # If something superior, drop everything else
       if(any(i_supr[i, ] == 1)) i_infr[i, i_supr[i, ] != 1] <- 1
-      i_acti[i+1, ] <- 1 - i_infr[i, ]
+      i_acti[i+1, ] <- 1 - as.integer((i_infr[i, ] == 1) | (i_inf[i, ] == 1))
+
     } else {
       p_eff[i, ] <- 1 - pnorm(0, eff_mean[i, ], sqrt(eff_var[i, ]))
       p_fut[i, ] <- pnorm(delta, eff_mean[i, ], sqrt(eff_var[i, ]))
       i_eff[i, ] <- p_eff[i, ] > eff_eps
-      i_inf[i, ] <- p_eff[i, ] < 1 - eff_eps
+      i_inf[i, ] <- (p_eff[i, ] < 1 - eff_eps) | (i_inf[i-1, ] == 1) # If ineffective, or previously ineffective
       i_fut[i, ] <- p_fut[i, ] > fut_eps
-      # i_eff[i, ] <- (p_eff[i, ] > eff_eps) | (i_eff[i-1,] == 1)
-      # i_inf[i, ] <- (p_eff[i, ] < 1 - eff_eps) | (i_inf[i-1, ] == 1)
-      # i_fut[i, ] <- (p_fut[i, ] > fut_eps) | (i_fut[i-1, ] == 1)
 
       # Only include active in superiority assessment
       p_supr[i, i_acti[i, ] == 1] <- prob_supr(mean_draws[, i_acti[i, ] == 1, drop = F])
       i_supr[i, ] <- (p_supr[i, ] > sup_eps) | (i_supr[i-1, ] == 1)
       i_infr[i, ] <- p_supr[i, ] < min(1, (1 - sup_eps) / (sum(i_acti[i, ]) - 1))
-      # If something superior, drop everything else
+
+      # If something superior, drop all other active treatments
       if(any(i_supr[i, ] == 1)) i_infr[i, i_supr[i, ] != 1] <- 1
-      i_acti[i+1, ] <- 1 - i_infr[i, ]
+
+      # If something inferior or harmful, drop it, if something previously dropped, it stays dropped
+      i_acti[i+1, ] <- 1 - as.integer((i_infr[i, ] == 1) | (i_inf[i, ] == 1) | (i_acti[i, ] == 0))
+
     }
 
     # Update allocations
-    if(brar) {
+    # - fix control at 1 / number of active arms
+    if(brar == 1) {
       n_active <- sum(i_acti[i+1, ]) + 1
       alloc[1] <- 1 / n_active
       ratio <- sqrt(p_supr[i, ] * i_acti[i+1, ] / n_enr[i, -1])
+      alloc[-1] <- (1 - alloc[1]) * ratio / sum(ratio)
+    } else if(brar == 2) {
+      n_active <- sum(i_acti[i+1, ]) + 1
+      alloc[1] <- 1 / n_active
+      ratio <- (p_supr[i, ] * i_acti[i+1, ]) ^ brar_k
       alloc[-1] <- (1 - alloc[1]) * ratio / sum(ratio)
     } else {
       n_active <- sum(i_acti[i+1, ]) + 1
@@ -193,9 +207,9 @@ simulate_trial_with_control <- function(
     # If we stopped last analysis, we are done
     if(stopped) break
     # Should the next analysis be final?
-    # - only stop if one active arm superior and better than control
+    # - only stop if one active arm is superior and is better than control
     if(allow_stopping)
-      if(any(i_supr[i, ] & i_eff[i, ])) stopped <- TRUE
+      if(any(i_supr[i, ] & i_eff[i, ]) | all(i_acti[i+1, ] == 0)) stopped <- TRUE
   }
 
   idx <- 1:i
@@ -208,7 +222,6 @@ simulate_trial_with_control <- function(
     trt_var  = trt_var[idx, , drop = F],
     eff_mean = eff_mean[idx, , drop = F],
     eff_var = eff_var[idx, , drop = F],
-    # b_mean = b_mean[idx ,, drop = F],
     p_eff = p_eff[idx, , drop = F],
     p_fut = p_fut[idx, , drop = F],
     i_eff = i_eff[idx, , drop = F],
