@@ -15,7 +15,7 @@ simulate_continuous_outcome <- function(
   dat[, tt := t0 + 12]
   arms <- length(means)
   out <- vapply(seq_len(arms), function(j) {rnorm(nsubj, means[j], sigma)}, FUN.VALUE = matrix(0, nsubj, 1))
-  out <- as.data.table(out)[, .(id = V1, t = V2, trt = V3, y = value)]
+  out <- as.data.table(out)[, .(id = V1, t = V2, trt = factor(V3, levels = 1:arms), y = value)]
   out <- out[dat, on = .(id)]
   setcolorder(out, c("id", "t0", "tt", "t", "trt", "y"))
   return(out)
@@ -32,19 +32,20 @@ simulate_continuous_outcome <- function(
 #' @export
 estimate_lm_model <- function(
   dat,
-  prior = c(int_prior_mean = 40, int_prior_sd = 5, b_prior_sd = 5, df = 3, scale = 5)
+  prior = c(int_prior_mean = 40, int_prior_sd = 5, b_prior_sd = 5, df = 3, scale = 5),
+  ctr = contr.treatment
 ) {
   int_prior_mean <- prior[1]
   int_prior_sd   <- prior[2]
   b_prior_sd     <- prior[3]
   a0             <- prior[4]
   b0             <- prior[5]
-  mX <- model.matrix( ~ factor(trt), data = dat, contrasts = list(`factor(trt)` = contr.orthonorm))
+  mX <- model.matrix( ~ trt, data = dat, contrasts = list(trt = ctr))
   y  <- dat$y
   mu0 <- c(int_prior_mean, 0, 0, 0)
   Sigma0 <- diag(c(int_prior_sd, rep(b_prior_sd, 3)))^2
   fit <- varapproxr::vb_lm(mX, y, mu0, Sigma0, a0 = a0, b0 = b0, prior = 2) # Note, implies Half-t(df = a0, scale = b0) prior
-  return(list(mu = fit$mu, Sigma = fit$Sigma))
+  return(list(mu = fit$mu, Sigma = fit$Sigma, X = mX))
 }
 
 
@@ -71,16 +72,17 @@ simulate_trial_with_control <- function(
   brar_k  = 0.5,
   allow_stopping = TRUE,
   make_dt = TRUE,
+  ctr = contr.treatment,
   ...
 ) {
   # Data setup
   K      <- length(alloc)
   trt    <- factor(1:K)
-  X      <- model.matrix( ~ trt, contrasts = list(trt = bayestestR::contr.orthonorm))
+  X      <- model.matrix( ~ trt, contrasts = list(trt = ctr))
   C      <- attr(X, "contrasts")$trt
   Z      <- cbind(-1, diag(1, 3))
   accdat <- unique(dat[, .(id, t0, tt)])
-  trtdat <- data.table(id = 1:max(n_seq), trt = 99)
+  trtdat <- data.table(id = 1:max(n_seq), trt = NA_character_)
   moddat <- NULL
   obsdat <- NULL
   # Interim setup
@@ -117,19 +119,19 @@ simulate_trial_with_control <- function(
     final[i] <- stopped | i == N
     # Finish follow-up of enrolled participants if stopped
     if(stopped) {
-      trtdat <- trtdat[trt != 99]
+      trtdat <- trtdat[!is.na(trt)]
       obsdat <- dat[trtdat, on = .(id, trt)]
       n_enr[i, ] <- trtdat[, .N, keyby = trt][["N"]]
       n_obs[i, ] <- obsdat[, .N, keyby = trt][["N"]]
     } else { # Otherwise enrol new participants
-      trtenr <- mass_weighted_urn_design(alloc, n_new[i], 4)$trt
+      trtenr <- factor(mass_weighted_urn_design(alloc, n_new[i], 4)$trt, levels = 1:K)
       trtdat[between(id, idenr[i, 1], idenr[i, 2]), trt := trtenr]
       moddat <- dat[trtdat[between(id, 1, idenr[i, 2])], on = .(id, trt)]
       obsdat <- moddat[tt <= t_seq[i]]
       n_enr[i, ] <- trtdat[between(id, 1, idenr[i, 2]), .N, keyby = trt][["N"]]
       n_obs[i, ] <- obsdat[, .N, keyby = trt][["N"]]
     }
-    fit <- estimate_lm_model(obsdat, prior = prior)
+    fit <- estimate_lm_model(obsdat, prior = prior, ctr = ctr)
     mu <- fit$mu
     Sigma <- fit$Sigma
     Xmu <- X %*% mu
