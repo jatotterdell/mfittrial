@@ -14,7 +14,7 @@ simulate_continuous_outcome(
 \arguments{
 \item{nsubj}{The number of participants to simulate}
 
-\item{accrual}{A function which determines rate of accrual in weeks}
+\item{accrual}{A function which determines rate of accrual in weeks, default assumes mean of 3 per week}
 
 \item{means}{The mean response under each treatment}
 

@@ -6,7 +6,8 @@
 \usage{
 estimate_lm_model(
   dat,
-  prior = c(int_prior_mean = 40, int_prior_sd = 5, b_prior_sd = 5, df = 3, scale = 5)
+  prior = c(int_prior_mean = 40, int_prior_sd = 5, b_prior_sd = 5, df = 3, scale = 5),
+  ctr = contr.treatment
 )
 }
 \arguments{
