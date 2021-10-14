@@ -16,6 +16,8 @@ estimate_lm_model(
 \item{prior}{A vector giving prior parameters:
 intercept prior mean, intercept prior sd, effect prior sd, variance prior df, variance prior scale.
 Note that the assumed prior on the variance is Half-t(df, scale) and on effects is Normal(0, effect_sd).}
+
+\item{ctr}{A contrast specification}
 }
 \description{
 Estimate linear regression model using variational approximation.

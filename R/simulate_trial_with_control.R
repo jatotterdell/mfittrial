@@ -28,6 +28,7 @@ simulate_continuous_outcome <- function(
 #' @param prior A vector giving prior parameters:
 #' intercept prior mean, intercept prior sd, effect prior sd, variance prior df, variance prior scale.
 #' Note that the assumed prior on the variance is Half-t(df, scale) and on effects is Normal(0, effect_sd).
+#' @param ctr A contrast specification
 #' @importFrom bayestestR contr.orthonorm
 #' @export
 estimate_lm_model <- function(

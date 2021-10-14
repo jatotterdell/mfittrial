@@ -24,3 +24,4 @@ Imports:
     data.table,
     designr,
     bayestestR
+Remotes: github::jatotterdell/varapproxr
