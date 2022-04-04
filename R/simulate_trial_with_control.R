@@ -196,7 +196,7 @@ simulate_trial_with_control <- function(
     if(brar == 1) {
       n_active <- sum(i_acti[i+1, ]) + 1
       alloc[1] <- 1 / n_active
-      ratio <- sqrt(p_supr[i, ] * i_acti[i+1, ] / n_enr[i, -1])
+      ratio <- (p_supr[i, ] * i_acti[i+1, ] / n_enr[i, -1]) ^ brar_k
       alloc[-1] <- (1 - alloc[1]) * ratio / sum(ratio)
     } else if(brar == 2) {
       n_active <- sum(i_acti[i+1, ]) + 1
