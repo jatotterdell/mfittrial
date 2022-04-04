@@ -9,8 +9,7 @@ Currently four versions:
 - `simulate_trial_longitudinal.R`: functions for simulating longitudinal design
 - `simulate_trial_with_control.R`: (current version), simulate trial treating one arm as fixed control
 
-The script `simulate_trial_with_control.R` is the current version 
-for the latest protocol updates following discussions at the stats meeting on 2021-08-02.
+The script `simulate_trial_with_control.R` is the current version  for the latest protocol updates following discussions at the stats meeting on 2021-08-02.
 
 ## Installation
 
