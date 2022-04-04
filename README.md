@@ -14,6 +14,6 @@ for the latest protocol updates following discussions at the stats meeting on 20
 
 ## Installation
 
-```
+```r
 remotes::install_github("jatotterdell/mfittrial")
 ```
