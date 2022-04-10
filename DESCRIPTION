@@ -1,7 +1,7 @@
 Package: mfittrial
 Type: Package
 Title: Functions for MFIT Trial
-Version: 0.0.0.999
+Version: 1.1.0
 Author: James Totterdell
 Maintainer: James Totterdell <jatotterdell@gmail.com>
 Description: Functions for MFIT trial.
