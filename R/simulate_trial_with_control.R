@@ -178,10 +178,13 @@ simulate_trial_with_control <-
         # Only include active in superiority assessment
         p_supr[i, i_acti[i, ] == 1] <- prob_supr(mean_draws[, i_acti[i, ] == 1, drop = F])
         i_supr[i, ] <- (p_supr[i, ] > sup_eps) | (i_supr[i - 1, ] == 1)
-        i_infr[i, ] <- p_supr[i, ] < min(1, (1 - sup_eps) / (sum(i_acti[i, ]) - 1))
 
         # If something superior, drop all other active treatments
-        if (any(i_supr[i, ] == 1)) i_infr[i, i_supr[i, ] != 1] <- 1
+        if (any(i_supr[i, ] == 1)) {
+          i_infr[i, i_supr[i, ] != 1] <- 1
+        } else {
+          i_infr[i, ] <- p_supr[i, ] < min(1, (1 - sup_eps) / (sum(i_acti[i, ]) - 1), na.rm = T)
+        }
 
         # If something inferior or harmful, drop it, if something previously dropped, it stays dropped
         i_acti[i + 1, ] <- 1 - as.integer((i_infr[i, ] == 1) | (i_inf[i, ] == 1) | (i_acti[i, ] == 0))
@@ -189,20 +192,26 @@ simulate_trial_with_control <-
 
       # Update allocations
       # - fix control at 1 / number of active arms
+      n_active <- sum(i_acti[i + 1, ]) + 1
       if (brar == 1) {
-        n_active <- sum(i_acti[i + 1, ]) + 1
         alloc[1] <- 1 / n_active
-        ratio <- (p_supr[i, ] * i_acti[i + 1, ] / n_enr[i, -1])^brar_k
-        alloc[-1] <- (1 - alloc[1]) * ratio / sum(ratio)
+        if(alloc[1] == 1) {
+          alloc[-1] <- 0
+        } else {
+          ratio <- (p_supr[i, ] * i_acti[i + 1, ] / n_enr[i, -1])^brar_k
+          alloc[-1] <- (1 - alloc[1]) * ratio / sum(ratio)
+        }
       } else if (brar == 2) {
-        n_active <- sum(i_acti[i + 1, ]) + 1
         alloc[1] <- 1 / n_active
         ratio <- (p_supr[i, ] * i_acti[i + 1, ])^brar_k
         alloc[-1] <- (1 - alloc[1]) * ratio / sum(ratio)
       } else {
-        n_active <- sum(i_acti[i + 1, ]) + 1
         alloc[1] <- 1 / n_active
-        alloc[-1] <- (1 - alloc[1]) * (alloc[-1] * i_acti[i + 1, ]) / sum(alloc[-1] * i_acti[i + 1, ])
+        if (alloc[1] == 1) {
+          alloc[-1] <- 0
+        } else {
+          alloc[-1] <- (1 - alloc[1]) * (alloc[-1] * i_acti[i + 1, ]) / sum(alloc[-1] * i_acti[i + 1, ])
+        }
       }
 
       # If we stopped last analysis, we are done
