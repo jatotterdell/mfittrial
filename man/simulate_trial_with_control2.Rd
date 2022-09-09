@@ -18,7 +18,7 @@ simulate_trial_with_control2(
   allow_stopping = TRUE,
   make_dt = TRUE,
   ctr = contr.treatment,
-  ...
+  ..
 )
 }
 \arguments{
@@ -26,9 +26,11 @@ simulate_trial_with_control2(
 
 \item{dat}{The dataset for this particular simulation}
 
-\item{eff_eps}{Effective decision threshold (relative to control) as function of fraction of information}
+\item{eff_eps}{Effective decision threshold (relative to control)
+as function of fraction of information}
 
-\item{sup_eps}{Superiority decision threshold (relative to active treatments) as function of fraction of information}
+\item{sup_eps}{Superiority decision threshold (relative to active treatments)
+as function of fraction of information}
 
 \item{fut_eps}{Futility threshold as a function of fraction of trial information.}
 

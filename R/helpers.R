@@ -10,6 +10,8 @@
 #' @param sample_size The number of allocations to generate
 #' @param alpha Parameter to control imbalance between arms
 #' @return A list detailing the mass-weighted-urn process.
+#' @importFrom stats aggregate contr.treatment formula
+#' @importFrom stats model.matrix pnorm rexp rnorm runif sd setNames time
 mass_weighted_urn_design <- function(target_alloc,
                                      sample_size,
                                      alpha = 4) {

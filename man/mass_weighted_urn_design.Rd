@@ -4,7 +4,8 @@
 \alias{mass_weighted_urn_design}
 \title{Mass-weighted urn randomisation
 Zhao W. (2015).
-Mass weighted urn design--A new randomization algorithm for unequal allocations.
+Mass weighted urn design--A new randomization
+algorithm for unequal allocations.
 Contemporary clinical trials, 43, 209–216.
 https://doi.org/10.1016/j.cct.2015.06.008}
 \usage{
@@ -23,7 +24,8 @@ A list detailing the mass-weighted-urn process.
 \description{
 Mass-weighted urn randomisation
 Zhao W. (2015).
-Mass weighted urn design--A new randomization algorithm for unequal allocations.
+Mass weighted urn design--A new randomization
+algorithm for unequal allocations.
 Contemporary clinical trials, 43, 209–216.
 https://doi.org/10.1016/j.cct.2015.06.008
 }

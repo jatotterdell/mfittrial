@@ -8,7 +8,11 @@ simulate_general_outcome_data(
   nsims = 50,
   nsubj = 400,
   means = matrix(0, 4, 4, dimnames = list(t = 0:3, a = 0:3)),
-  covar = {     R <- matrix(0.5, 4, 4)     diag(R) <- 1     5^2 * R },
+  covar = {
+     R <- matrix(0.5, 4, 4)
+     diag(R) <- 1
+     5^2 * R
+ },
   ...
 )
 }
