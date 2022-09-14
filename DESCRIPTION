@@ -23,5 +23,6 @@ Imports:
     tidyr,
     data.table,
     designr,
-    bayestestR
+    bayestestR,
+    truncdist
 Remotes: github::jatotterdell/varapproxr
