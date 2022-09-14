@@ -688,7 +688,6 @@ simulate_trial_with_control3 <-
 
         # Is active treatment superior
         p_supr[i, ] <- prob_supr(mean_draws)
-        p_supr_act[i, ] <-  p_supr[i, ]
         i_supr[i, ] <- p_supr[i, ] > sup_eps
         i_infr[i, ] <- p_supr[i, ] < (1 - sup_eps) / (K - 2)
       } else {
@@ -702,9 +701,6 @@ simulate_trial_with_control3 <-
 
         # Only include active in superiority assessment
         p_supr[i, ] <- prob_supr(mean_draws)
-        p_supr_act[i, i_acti[i, ] == 1] <- prob_supr(
-          mean_draws[, i_acti[i, ] == 1, drop = FALSE]
-        )
         i_supr[i, ] <- (p_supr[i, ] > sup_eps) | (i_supr[i - 1, ] == 1)
       }
 
@@ -725,6 +721,10 @@ simulate_trial_with_control3 <-
               (i_acti[i, ] == 0)
           )
       }
+      # Amongst still active arms what is Pr(best)?
+      p_supr_act[i, i_acti[i+1, ] == 1] <- prob_supr(
+        mean_draws[, i_acti[i+1, ] == 1, drop = FALSE]
+      )
 
       # Update allocations
       # - fix control at 1 / number of active arms
