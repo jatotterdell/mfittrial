@@ -37,7 +37,7 @@ mass_weighted_urn_design <- function(target_alloc,
 
   for (i in 2:(sample_size + 1)) {
     # Update allocation probabilities
-    ptmp <- alpha * prob_alloc - n[i - 1, ] + (i - 1) * prob_alloc
+    ptmp <- alpha * prob_alloc - n[i - 1, ] + sum(n[i - 1, ]) * prob_alloc
     p[i - 1, ] <- pmax(ptmp, 0)
     p[i - 1, ] <- p[i - 1, ] / sum(p[i - 1, ])
     trt[i - 1] <- findInterval(y[i - 1], c(0, cumsum(p[i - 1, ])))
