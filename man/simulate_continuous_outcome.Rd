@@ -7,7 +7,7 @@
 simulate_continuous_outcome(
   nsubj = 400,
   accrual = function(n) {
-     round(cumsum(rexp(n, 3)))
+     cumsum(rexp(n, 3))
  },
   means = rep(40, 4),
   sigma = 5,

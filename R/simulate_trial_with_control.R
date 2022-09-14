@@ -11,6 +11,7 @@
 #' Variance of response (assumed constant over treatments)
 #' @param trunc
 #' Bound the outcome between 0 and 52 and make discrete.
+#' @import truncdist
 #' @export
 simulate_continuous_outcome <- function(nsubj = 400,
                                         accrual = function(n) {
@@ -616,6 +617,7 @@ simulate_trial_with_control3 <-
     )
     p_alloc <- trt_mean
     p_supr <- eff_mean
+    p_supr_act <- eff_mean
     i_supr <- eff_mean
     i_infr <- eff_mean
     p_eff <- eff_mean
@@ -686,6 +688,7 @@ simulate_trial_with_control3 <-
 
         # Is active treatment superior
         p_supr[i, ] <- prob_supr(mean_draws)
+        p_supr_act[i, ] <-  p_supr[i, ]
         i_supr[i, ] <- p_supr[i, ] > sup_eps
         i_infr[i, ] <- p_supr[i, ] < (1 - sup_eps) / (K - 2)
       } else {
@@ -698,28 +701,29 @@ simulate_trial_with_control3 <-
         i_fut[i, ] <- (p_fut[i, ] > fut_eps) | (i_fut[i - 1, ] == 1)
 
         # Only include active in superiority assessment
-        p_supr[i, i_acti[i, ] == 1] <- prob_supr(
+        p_supr[i, ] <- prob_supr(mean_draws)
+        p_supr_act[i, i_acti[i, ] == 1] <- prob_supr(
           mean_draws[, i_acti[i, ] == 1, drop = FALSE]
         )
         i_supr[i, ] <- (p_supr[i, ] > sup_eps) | (i_supr[i - 1, ] == 1)
+      }
 
-        if (dropeff) {
-          # If effective drop it
-          # If harmful drop it
-          # if previously dropped, it stays dropped
-          i_acti[i + 1, ] <- 1 -
-            as.integer(
-              (i_eff[i, ] == 1) |
-                (i_inf[i, ] == 1) |
-                (i_acti[i, ] == 0)
-            )
-        } else {
-          i_acti[i + 1, ] <- 1 -
-            as.integer(
+      if (dropeff) {
+        # If effective drop it
+        # If harmful drop it
+        # if previously dropped, it stays dropped
+        i_acti[i + 1, ] <- 1 -
+          as.integer(
+            (i_eff[i, ] == 1) |
               (i_inf[i, ] == 1) |
-                (i_acti[i, ] == 0)
-            )
-        }
+              (i_acti[i, ] == 0)
+          )
+      } else {
+        i_acti[i + 1, ] <- 1 -
+          as.integer(
+            (i_inf[i, ] == 1) |
+              (i_acti[i, ] == 0)
+          )
       }
 
       # Update allocations
@@ -730,12 +734,12 @@ simulate_trial_with_control3 <-
         if (alloc[1] == 1) {
           alloc[-1] <- 0
         } else {
-          ratio <- (p_supr[i, ] * i_acti[i + 1, ] / n_enr[i, -1])^brar_k
+          ratio <- (p_supr_act[i, ] * i_acti[i + 1, ] / n_enr[i, -1])^brar_k
           alloc[-1] <- (1 - alloc[1]) * ratio / sum(ratio)
         }
       } else if (brar == 2) {
         alloc[1] <- 1 / n_active
-        ratio <- (p_supr[i, ] * i_acti[i + 1, ])^brar_k
+        ratio <- (p_supr_act[i, ] * i_acti[i + 1, ])^brar_k
         alloc[-1] <- (1 - alloc[1]) * ratio / sum(ratio)
       } else {
         alloc[1] <- 1 / n_active
@@ -776,6 +780,7 @@ simulate_trial_with_control3 <-
       i_inf = i_inf[idx, , drop = FALSE],
       i_fut = i_fut[idx, , drop = FALSE],
       p_supr = p_supr[idx, , drop = FALSE],
+      p_supr_act = p_supr_act[idx, , drop = FALSE],
       i_supr = i_supr[idx, , drop = FALSE],
       i_infr = i_infr[idx, , drop = FALSE],
       i_acti = i_acti[idx + 1, , drop = FALSE]
