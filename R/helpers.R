@@ -64,7 +64,46 @@ mass_weighted_urn_design <- function(target_alloc,
   ))
 }
 
+tnmean_inner <- function(a, b) {
+  (dnorm(b) - dnorm(a)) / (pnorm(b) - pnorm(a))
+}
 
+#' Calculate mean of truncated normal
+#'
+#' @param a Lower bound
+#' @param b Upper bound
+#' @param mu Mean of normal
+#' @param sigma Standard deviation of normal
+#' @return Mean of truncated normal
+#' @export
+tnmean <- function(a, b, mu, sigma) {
+  if(a > b) stop("a must be less than or equal to b")
+  if(mu < a || mu > b) stop("mu outside boundary, algorithm unstable")
+  if(b == a) return(b)
+  alpha <- (a - mu) / sigma
+  beta <- (b - mu) / sigma
+  return(mu - tnmean_inner(alpha, beta) * sigma)
+}
+
+
+#' Calculate variance of truncated normal
+#'
+#' @param a Lower bound
+#' @param b Upper bound
+#' @param mu Mean of normal
+#' @param sigma Standard deviation of normal
+#' @return Variance of truncated normal
+#' @export
+tnvar <- function(a, b, mu, sigma) {
+  if(a > b) stop("a must be less than or equal to b")
+  if(mu < a || mu > b) stop("mu outside boundary, algorithm unstable")
+  if(b == a) return(b)
+  alpha <- (a - mu) / sigma
+  beta <- (b - mu) / sigma
+  tmp1 <- (beta * dnorm(beta) - alpha * dnorm(alpha)) / (pnorm(beta) - pnorm(alpha))
+  tmp2 <- ((dnorm(beta) - dnorm(alpha)) / (pnorm(beta) - pnorm(alpha))) ^ 2
+  return(sigma ^ 2 * (1 - tmp1 - tmp2))
+}
 
 
 #' Creates C matrix for use in mvnorm_prob_each_best
