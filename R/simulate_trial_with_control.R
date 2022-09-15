@@ -693,9 +693,9 @@ simulate_trial_with_control3 <-
       } else {
         p_eff[i, ] <- 1 - pnorm(0, eff_mean[i, ], sqrt(eff_var[i, ]))
         p_fut[i, ] <- pnorm(delta, eff_mean[i, ], sqrt(eff_var[i, ]))
-        i_eff[i, ] <- p_eff[i, ] > eff_eps
 
         # If ineffective, or previously ineffective
+        i_eff[i, ] <- (p_eff[i, ] > eff_eps) | (i_eff[i - 1, ] == 1)
         i_inf[i, ] <- (p_eff[i, ] < 1 - eff_eps) | (i_inf[i - 1, ] == 1)
         i_fut[i, ] <- (p_fut[i, ] > fut_eps) | (i_fut[i - 1, ] == 1)
 
