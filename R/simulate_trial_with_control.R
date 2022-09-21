@@ -573,6 +573,7 @@ simulate_trial_with_control3 <-
            ),
            brar = 2,
            brar_k = 0.5,
+           brar_min = 0,
            dropeff = FALSE,
            allow_stopping = TRUE,
            make_dt = TRUE,
@@ -750,6 +751,7 @@ simulate_trial_with_control3 <-
             sum(alloc[-1] * i_acti[i + 1, ])
         }
       }
+      alloc <- apply_min_brar(alloc, brar_min, c(1, i_acti[i + 1, ]))
 
       # If we stopped last analysis, we are done
       if (stopped) break

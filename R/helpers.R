@@ -240,6 +240,22 @@ brar2 <- function(pbest, variance, n, active, fix_ctr = NULL) {
   return(p)
 }
 
+apply_min_brar <- function(p, brar_min, a) {
+  # stopifnot("sum(p) != 1" = sum(p) == 1)
+  stopifnot("brar_min > 1 / sum(a)" = brar_min <= 1 / sum(a))
+  stopifnot("p > 0 but a == 0" = all(a[p > 0] > 0))
+  stopifnot(brar_min * sum(a[-1]) <= (1 - p[1]))
+  id1 <- (p < brar_min) & a
+  id1[1] <- FALSE
+  id2 <- p >= brar_min
+  id2[1] <- FALSE
+  R <- sum(pmax(0, brar_min - p[-1]) * a[-1])
+  p[id1] <- brar_min
+  r <- (p[-1] - brar_min) * a[-1]
+  p[-1] <- p[-1] - R * r / sum(r)
+  return(p)
+}
+
 odds_trans_cdf <- function(cdf, theta) {
   return(cdf / (cdf + (1 - cdf) * exp(-theta)))
 }
