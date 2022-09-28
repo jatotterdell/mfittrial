@@ -618,7 +618,8 @@ simulate_trial_with_control3 <-
     )
     p_alloc <- trt_mean
     p_supr <- eff_mean
-    p_supr_act <- eff_mean
+    p_supr_act1 <- eff_mean
+    p_supr_act2 <- eff_mean
     i_supr <- eff_mean
     i_infr <- eff_mean
     p_eff <- eff_mean
@@ -689,8 +690,8 @@ simulate_trial_with_control3 <-
 
         # Is active treatment superior
         p_supr[i, ] <- prob_supr(mean_draws)
+        p_supr_act1[i, ] <- p_supr[i, ]
         i_supr[i, ] <- p_supr[i, ] > sup_eps
-        i_infr[i, ] <- p_supr[i, ] < (1 - sup_eps) / (K - 2)
       } else {
         p_eff[i, ] <- 1 - pnorm(0, eff_mean[i, ], sqrt(eff_var[i, ]))
         p_fut[i, ] <- pnorm(delta, eff_mean[i, ], sqrt(eff_var[i, ]))
@@ -702,7 +703,8 @@ simulate_trial_with_control3 <-
 
         # Only include active in superiority assessment
         p_supr[i, ] <- prob_supr(mean_draws)
-        i_supr[i, ] <- (p_supr[i, ] > sup_eps & p_eff[i, ] > eff_eps) | (i_supr[i - 1, ] == 1)
+        p_supr_act1[i, i_acti[i, ] == 1] <- prob_supr(mean_draws[, i_acti[i, ] == 1, drop = FALSE])
+        i_supr[i, ] <- (p_supr_act1[i, ] > sup_eps & p_eff[i, ] > eff_eps) | (i_supr[i - 1, ] == 1)
       }
 
       if (drop == "eff") {
@@ -733,7 +735,7 @@ simulate_trial_with_control3 <-
           )
       }
       # Amongst still active arms what is Pr(best)?
-      p_supr_act[i, i_acti[i+1, ] == 1] <- prob_supr(
+      p_supr_act2[i, i_acti[i+1, ] == 1] <- prob_supr(
         mean_draws[, i_acti[i+1, ] == 1, drop = FALSE]
       )
 
@@ -745,12 +747,12 @@ simulate_trial_with_control3 <-
         if (alloc[1] == 1) {
           alloc[-1] <- 0
         } else {
-          ratio <- (p_supr_act[i, ] * i_acti[i + 1, ] / n_enr[i, -1])^brar_k
+          ratio <- (p_supr_act2[i, ] * i_acti[i + 1, ] / n_enr[i, -1])^brar_k
           alloc[-1] <- (1 - alloc[1]) * ratio / sum(ratio)
         }
       } else if (brar == 2) {
         alloc[1] <- 1 / n_active
-        ratio <- (p_supr_act[i, ] * i_acti[i + 1, ])^brar_k
+        ratio <- (p_supr_act2[i, ] * i_acti[i + 1, ])^brar_k
         alloc[-1] <- (1 - alloc[1]) * ratio / sum(ratio)
       } else {
         alloc[1] <- 1 / n_active
@@ -770,6 +772,7 @@ simulate_trial_with_control3 <-
 
       # Should the next analysis be final?
       # - only stop if all active arms have been dropped
+      # - or if only continuing exercise intervention is effective
       if (allow_stopping) {
         if (all(i_acti[i + 1, ] == 0)) {
           stopped <- TRUE
@@ -794,9 +797,10 @@ simulate_trial_with_control3 <-
       i_inf = i_inf[idx, , drop = FALSE],
       i_fut = i_fut[idx, , drop = FALSE],
       p_supr = p_supr[idx, , drop = FALSE],
-      p_supr_act = p_supr_act[idx, , drop = FALSE],
+      p_supr_act1 = p_supr_act1[idx, , drop = FALSE],
+      p_supr_act2 = p_supr_act2[idx, , drop = FALSE],
       i_supr = i_supr[idx, , drop = FALSE],
-      i_infr = i_infr[idx, , drop = FALSE],
+      # i_infr = i_infr[idx, , drop = FALSE],
       i_acti = i_acti[idx + 1, , drop = FALSE]
     )
     if (make_dt) {
