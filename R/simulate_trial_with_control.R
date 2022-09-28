@@ -574,7 +574,7 @@ simulate_trial_with_control3 <-
            brar = 2,
            brar_k = 0.5,
            brar_min = 0,
-           dropeff = FALSE,
+           drop = "none",
            allow_stopping = TRUE,
            make_dt = TRUE,
            ctr = contr.treatment,
@@ -702,16 +702,26 @@ simulate_trial_with_control3 <-
 
         # Only include active in superiority assessment
         p_supr[i, ] <- prob_supr(mean_draws)
-        i_supr[i, ] <- (p_supr[i, ] > sup_eps) | (i_supr[i - 1, ] == 1)
+        i_supr[i, ] <- (p_supr[i, ] > sup_eps & p_eff[i, ] > eff_eps) | (i_supr[i - 1, ] == 1)
       }
 
-      if (dropeff) {
+      if (drop == "eff") {
         # If effective drop it
         # If harmful drop it
         # if previously dropped, it stays dropped
         i_acti[i + 1, ] <- 1 -
           as.integer(
             (i_eff[i, ] == 1) |
+              (i_inf[i, ] == 1) |
+              (i_acti[i, ] == 0)
+          )
+      } else if (drop == "sup") {
+        # Drop only if:
+        # - superior and effective, or
+        # - ineffective
+        i_acti[i + 1, ] <- 1 -
+          as.integer(
+            (i_supr[i, ] == 1) |
               (i_inf[i, ] == 1) |
               (i_acti[i, ] == 0)
           )
