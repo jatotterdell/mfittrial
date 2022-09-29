@@ -604,6 +604,7 @@ simulate_trial_with_control3 <-
       dimnames = list(analysis = 1:N, treatment = trtlabs)
     )
     n_obs <- n_enr
+    y_obs <- n_obs
     parlabs <- c("intercept", trtlabs)
     trt_mean <- matrix(0, N, K,
       dimnames = list(analysis = 1:N, treatment = trtlabs)
@@ -620,6 +621,7 @@ simulate_trial_with_control3 <-
     p_supr <- eff_mean
     p_supr_act1 <- eff_mean
     p_supr_act2 <- eff_mean
+    p_2best <- eff_mean
     i_supr <- eff_mean
     i_infr <- eff_mean
     p_eff <- eff_mean
@@ -629,6 +631,8 @@ simulate_trial_with_control3 <-
     i_fut <- eff_mean
     i_suprandeff <- eff_mean
     i_supr_act1 <- eff_mean
+    i_2best <- eff_mean
+    i_2bestandeff <- eff_mean
     i_acti <- matrix(1, N + 1, K - 1,
       dimnames = list(analysis = 0:N, treatment = trtlabs[-1])
     )
@@ -645,6 +649,7 @@ simulate_trial_with_control3 <-
         obsdat <- dat[trtdat, on = .(id, trt)]
         n_enr[i, ] <- trtdat[, .N, keyby = trt][["N"]]
         n_obs[i, ] <- obsdat[, .N, keyby = trt][["N"]]
+        y_obs[i, ] <- obsdat[, .(y = mean(y)), keyby = trt][["y"]]
       } else { # Otherwise enrol new participants
         trtenr <- factor(
           mass_weighted_urn_design(alloc, n_new[i], 4)$trt,
@@ -658,6 +663,7 @@ simulate_trial_with_control3 <-
           keyby = trt
         ][["N"]]
         n_obs[i, ] <- obsdat[, .N, keyby = trt][["N"]]
+        y_obs[i, ] <- obsdat[, .(y = mean(y)), keyby = trt][["y"]]
       }
       fit <- estimate_lm_model(obsdat, prior = prior, ctr = ctr)
       mu <- fit$mu
@@ -675,9 +681,6 @@ simulate_trial_with_control3 <-
         2e4, Xmu[2:4], XSXt[2:4, 2:4]
       )
 
-      # Conclusions carry forward
-      # i.e. once decided superior/inferior, '
-      # also superior/inferior at all future analyses
       if (i == 1) {
         # Probability active treatment better than control
         p_eff[i, ] <- 1 - pnorm(0, eff_mean[i, ], sqrt(eff_var[i, ]))
@@ -695,6 +698,10 @@ simulate_trial_with_control3 <-
         i_supr_act1[i, ] <- p_supr_act1[i, ] > sup_eps
         # Superior and effective
         i_suprandeff[i, ] <- (p_supr[i, ] > sup_eps) & (p_eff[i, ] > eff_eps)
+        # Second best
+        p_2best[i, -which.max(p_supr[i, ])] <- prob_supr(mean_draws[, -which.max(p_supr[i, ]), drop = FALSE])
+        i_2best[i, ] <- p_2best[i, ] > sup_eps
+        i_2bestandeff[i, ] <- ((p_2best[i, ] > sup_eps) & (p_eff[i, ] > eff_eps) & any(i_suprandeff[i, ] == 1))
       } else {
         # Probability active treatment better than control
         p_eff[i, ] <- 1 - pnorm(0, eff_mean[i, ], sqrt(eff_var[i, ]))
@@ -710,7 +717,15 @@ simulate_trial_with_control3 <-
         p_supr_act1[i, i_acti[i, ] == 1] <- prob_supr(mean_draws[, i_acti[i, ] == 1, drop = FALSE])
         i_supr_act1[i, ] <- p_supr_act1[i, ] > sup_eps
         # Ever superior and effective flag
-        i_suprandeff[i, ] <- (p_supr_act1[i, ] > sup_eps & p_eff[i, ] > eff_eps) | (i_suprandeff[i - 1, ] == 1)
+        i_suprandeff[i, ] <- (p_supr_act1[i, ] > sup_eps & p_eff[i, ] > eff_eps & !any(i_suprandeff[i - 1, ] == 1)) | (i_suprandeff[i - 1, ] == 1)
+        # Second best
+        if (any(i_suprandeff[i, ] == 1)) {
+          p_2best[i, -which(i_suprandeff[i, ] == 1)] <- prob_supr(mean_draws[, -which(i_suprandeff[i, ] == 1), drop = FALSE])
+        } else {
+          p_2best[i, -which.max(p_supr[i, ])] <- prob_supr(mean_draws[, -which.max(p_supr[i, ]), drop = FALSE])
+        }
+        i_2best[i, ] <- (p_2best[i, ] > sup_eps)
+        i_2bestandeff[i, ] <- ((p_2best[i, ] > sup_eps) & (p_eff[i, ] > eff_eps) & any(i_suprandeff[i, ] == 1)) | (i_2bestandeff[i - 1, ] == 1)
       }
 
       if (drop == "eff") {
@@ -722,7 +737,8 @@ simulate_trial_with_control3 <-
         # Drop only if:
         # - superior and effective, or
         # - ineffective
-        i_acti[i + 1, ] <- 1 - as.integer((i_suprandeff[i, ] == 1) | (i_inf[i, ] == 1) | (i_acti[i, ] == 0))
+        # Where by "superior" we mean superior to the remaining arms
+        i_acti[i + 1, ] <- 1 - as.integer((i_suprandeff[i, ] == 1) | (i_2bestandeff[i, ] == 1) | (i_inf[i, ] == 1) | (i_acti[i, ] == 0))
       } else {
         # Drop only if:
         # - ineffective
@@ -769,9 +785,11 @@ simulate_trial_with_control3 <-
       # - or if only continuing exercise intervention is effective
       if (allow_stopping) {
         stop_condition1 <- all(i_acti[i + 1, ] == 0)
-        if (stop_condition1) {
+        stop_condition2 <- ifelse(sum(i_acti[i + 1, ]) == 1, (p_eff[i, which(i_acti[i + 1, ] == 1)] > eff_eps), FALSE)
+        if (stop_condition1 | stop_condition2) {
           stopped <- TRUE
-          alloc <- 0
+          i_acti[i + 1, ] <- 0
+          alloc <- rep(0, 4)
         }
       }
     }
@@ -782,6 +800,7 @@ simulate_trial_with_control3 <-
       p_alloc = p_alloc[idx, , drop = FALSE],
       n_enr = n_enr[idx, , drop = FALSE],
       n_obs = n_obs[idx, , drop = FALSE],
+      y_obs = y_obs[idx, , drop = FALSE],
       trt_mean = trt_mean[idx, , drop = FALSE],
       trt_var = trt_var[idx, , drop = FALSE],
       eff_mean = eff_mean[idx, , drop = FALSE],
@@ -794,9 +813,12 @@ simulate_trial_with_control3 <-
       p_supr = p_supr[idx, , drop = FALSE],
       p_supr_act1 = p_supr_act1[idx, , drop = FALSE],
       p_supr_act2 = p_supr_act2[idx, , drop = FALSE],
+      p_2best = p_2best[idx, , drop = FALSE],
       i_supr = i_supr[idx, , drop = FALSE],
       i_supr_act1 = i_supr_act1[idx, , drop = FALSE],
+      i_2best = i_2best[idx, , drop = FALSE],
       i_suprandeff = i_suprandeff[idx, , drop = FALSE],
+      i_2bestandeff = i_2bestandeff[idx, , drop = FALSE],
       i_acti = i_acti[idx + 1, , drop = FALSE]
     )
     if (make_dt) {
